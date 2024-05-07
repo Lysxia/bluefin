@@ -4,7 +4,7 @@
 module Bluefin.Examples.DB where
 
 import Bluefin.Compound
-  ( Handle (mapHandle),
+  ( IsHandle (mapHandle),
     makeOp,
     useImplIn,
     useImplUnder,
@@ -26,7 +26,7 @@ data DbEff es = MkDbEff
   { queryImpl :: forall e. DbHandle -> UserId -> Eff (e :& es) User
   }
 
-instance Handle DbEff where
+instance IsHandle DbEff where
   mapHandle db =
     MkDbEff
       { queryImpl = \dbh uid -> useImplUnder (queryImpl db dbh uid)

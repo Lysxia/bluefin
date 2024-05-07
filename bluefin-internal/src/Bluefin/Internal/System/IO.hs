@@ -21,7 +21,7 @@ import qualified System.IO
 -- unsafeProvideIO on all Handle functions
 data Handle e = UnsafeMkHandle System.IO.Handle (IOE e)
 
-instance Bluefin.Internal.Handle Handle where
+instance Bluefin.Internal.IsHandle Handle where
   mapHandle (UnsafeMkHandle h io) = UnsafeMkHandle h (mapHandle io)
 
 withFile ::

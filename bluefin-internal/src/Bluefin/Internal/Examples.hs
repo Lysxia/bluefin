@@ -13,6 +13,7 @@ import Bluefin.Internal.Pipes
     (>->),
   )
 import qualified Bluefin.Internal.Pipes as P
+import Bluefin.Internal.Handle (Handle, with)
 import Control.Exception (IOException)
 import qualified Control.Exception
 import Control.Monad (forever, replicateM_, unless, when)
@@ -900,6 +901,26 @@ runFileSystemIO ex io k =
       effIO io (Control.Exception.try @IOException m) >>= \case
         Left e -> throw ex (show e)
         Right r -> pure r
+
+runFileSystemPure' ::
+  (e1 :> es) =>
+  Exception String e1 ->
+  [(FilePath, String)] ->
+  (forall e2. Handle FileSystem e2 -> Eff (e2 :& es) r) ->
+  Eff es r
+runFileSystemPure' ex fs0 k =
+  evalState fs0 $ \fs ->
+    let fsh0 = MkFileSystem
+          { readFileImpl = \path -> do
+              fs' <- get fs
+              case lookup path fs' of
+                Nothing ->
+                  throw ex ("File not found: " <> path)
+                Just s -> pure s,
+            writeFileImpl = \path contents ->
+              modify fs ((path, contents) :)
+          }
+    in with fsh0 $ \fsh -> insertSecond (k fsh)
 
 action :: (e :> es) => FileSystem e -> Eff es String
 action fs = do
