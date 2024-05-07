@@ -341,7 +341,7 @@ type Stream a = Coroutine a ()
 
 type Consume a = Coroutine () a
 
--- | You can define a @Handle@ instance for your compound handles.  As
+-- | You can define a @IsHandle@ instance for your compound handles.  As
 -- an example, an "application" handle with a dynamic effect for
 -- database queries, a concrete effect for application state and a
 -- concrete effect for a logging effect might look like this:
@@ -359,7 +359,7 @@ type Consume a = Coroutine () a
 -- apply @useImplUnder@ to all the fields that are dynamic effects:
 --
 -- @
--- instance Handle Application where
+-- instance IsHandle Application where
 --   mapHandle
 --     MkApplication
 --       { queryDatabase = q,
@@ -372,24 +372,29 @@ type Consume a = Coroutine () a
 --           logger = mapHandle l
 --         }
 -- @
-class Handle (h :: Effects -> Type) where
+--
+-- Note that preceding @useImpl@ on the dynamic effect there is one
+-- fmap per @->@ that appears in type of the dynamic effect.  That is,
+-- @queryDatabase@ has type @String -> Int -> Eff e [String]@, which
+-- has two @->@, so there are two @fmap@s before @useImpl@.
+class IsHandle (h :: Effects -> Type) where
   -- | Used to create compound effects, i.e. handles that contain
   -- other handles.
   mapHandle :: (e :> es) => h e -> h es
 
-instance Handle (State s) where
+instance IsHandle (State s) where
   mapHandle (UnsafeMkState s) = UnsafeMkState s
 
-instance Handle (Exception s) where
+instance IsHandle (Exception s) where
   mapHandle (UnsafeMkException s) = UnsafeMkException s
 
-instance Handle (Coroutine a b) where
+instance IsHandle (Coroutine a b) where
   mapHandle (MkCoroutine f) = MkCoroutine (fmap useImpl f)
 
-instance Handle (Writer w) where
+instance IsHandle (Writer w) where
   mapHandle (Writer wr) = Writer (mapHandle wr)
 
-instance Handle IOE where
+instance IsHandle IOE where
   mapHandle MkIOE = MkIOE
 
 newtype In (a :: Effects) (b :: Effects) = In# (# #)
@@ -1248,7 +1253,7 @@ tell ::
 tell (Writer y) = yield y
 
 newtype Reader r e = MkReader (State r e)
-  deriving newtype (Handle)
+  deriving newtype (IsHandle)
 
 runReader ::
   -- | Initial value for @Reader@.

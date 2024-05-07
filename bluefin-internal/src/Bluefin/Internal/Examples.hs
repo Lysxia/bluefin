@@ -644,7 +644,7 @@ data Counter5 e = MkCounter5
     getCounter5Impl :: forall e'. String -> Eff (e' :& e) Int
   }
 
-instance Handle Counter5 where
+instance IsHandle Counter5 where
   mapHandle c =
     MkCounter5
       { incCounter5Impl = useImplUnder (incCounter5Impl c),
@@ -705,7 +705,7 @@ data Counter6 e = MkCounter6
     counter6Stream :: Stream String e
   }
 
-instance Handle Counter6 where
+instance IsHandle Counter6 where
   mapHandle c =
     MkCounter6
       { incCounter6Impl = useImplUnder (incCounter6Impl c),
@@ -768,7 +768,7 @@ data Counter7 e = MkCounter7
     counter7Stream :: Stream String e
   }
 
-instance Handle Counter7 where
+instance IsHandle Counter7 where
   mapHandle c =
     MkCounter7
       { incCounter7Impl = \ex -> useImplUnder (incCounter7Impl c ex),
@@ -842,11 +842,13 @@ data FileSystem es = MkFileSystem
     writeFileImpl :: forall e. FilePath -> String -> Eff (e :& es) ()
   }
 
-instance Handle FileSystem where
+instance IsHandle FileSystem where
   mapHandle fs = MkFileSystem {
     readFileImpl = \fp -> useImplUnder (readFileImpl fs fp),
     writeFileImpl = \fp s -> useImplUnder (writeFileImpl fs fp s)
     }
+--instance IsHandle FileSystem where
+--  mapHandle (MkFileSystem read write) = MkFileSystem (useImpl . read) (fmap useImpl . write)
 
 readFile :: (e :> es) => FileSystem e -> FilePath -> Eff es String
 readFile fs filepath = makeOp (readFileImpl (mapHandle fs) filepath)
@@ -922,7 +924,7 @@ exampleRunFileSystemIO = runEff $ \io -> try $ \ex ->
 -- \$ cat /tmp/bluefin
 -- Hello!
 
--- instance Handle example
+-- instance IsHandle example
 
 data Application e = MkApplication
   { queryDatabase :: forall e'. String -> Int -> Eff (e' :& e) [String],
@@ -930,7 +932,7 @@ data Application e = MkApplication
     logger :: Stream String e
   }
 
-instance Handle Application where
+instance IsHandle Application where
   mapHandle
     MkApplication
       { queryDatabase = q,
