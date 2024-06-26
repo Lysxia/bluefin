@@ -839,31 +839,25 @@ exampleCounter7B = runPureEff $ yieldToList $ \y -> do
 
 -- FileSystem
 
-data FileSystem es = MkFileSystem
-  { readFileImpl :: forall e. FilePath -> Eff (e :& es) String,
-    writeFileImpl :: forall e. FilePath -> String -> Eff (e :& es) ()
+data FileSystem e es = MkFileSystem
+  { readFileImpl :: FilePath -> Eff es String,
+    writeFileImpl :: FilePath -> String -> Eff es ()
   }
 
-instance IsHandle FileSystem where
-  mapHandle fs = MkFileSystem {
-    readFileImpl = \fp -> useImplUnder (readFileImpl fs fp),
-    writeFileImpl = \fp s -> useImplUnder (writeFileImpl fs fp s)
-    }
---instance IsHandle FileSystem where
---  mapHandle (MkFileSystem read write) = MkFileSystem (useImpl . read) (fmap useImpl . write)
+instance IsHandle1 FileSystem where
+  mapHandle1 (MkFileSystem read write) = MkFileSystem (useImpl . read) (fmap useImpl . write)
 
-readFile :: (e :> es) => FileSystem e -> FilePath -> Eff es String
-readFile fs filepath = makeOp (readFileImpl (mapHandle fs) filepath)
+readFile :: (e :> es) => FileSystem e' e -> FilePath -> Eff es String
+readFile fs filepath = useImpl (readFileImpl fs filepath)
 
-writeFile :: (e :> es) => FileSystem e -> FilePath -> String -> Eff es ()
-writeFile fs filepath contents =
-  makeOp (writeFileImpl (mapHandle fs) filepath contents)
+writeFile :: (e :> es) => FileSystem e' e -> FilePath -> String -> Eff es ()
+writeFile fs filepath contents = useImpl (writeFileImpl fs filepath contents)
 
 runFileSystemPure ::
   (e1 :> es) =>
   Exception String e1 ->
   [(FilePath, String)] ->
-  (forall e2. FileSystem e2 -> Eff (e2 :& es) r) ->
+  (forall e2. FileSystem e' e2 -> Eff (e2 :& es) r) ->
   Eff es r
 runFileSystemPure ex fs0 k =
   evalState fs0 $ \fs ->
@@ -884,11 +878,11 @@ runFileSystemPure ex fs0 k =
           }
 
 runFileSystemIO ::
-  forall e1 e2 es r.
+  forall e1 e2 es r e'.
   (e1 :> es, e2 :> es) =>
   Exception String e1 ->
   IOE e2 ->
-  (forall e. FileSystem e -> Eff (e :& es) r) ->
+  (forall e. FileSystem e' e -> Eff (e :& es) r) ->
   Eff es r
 runFileSystemIO ex io k =
   useImplIn
@@ -910,7 +904,7 @@ runFileSystemPure' ::
   (e1 :> es) =>
   Exception String e1 ->
   [(FilePath, String)] ->
-  (forall e2. Handle FileSystem e2 -> Eff (e2 :& es) r) ->
+  (forall e2. FileSystem e' e2 -> Eff (e2 :& es) r) ->
   Eff es r
 runFileSystemPure' ex fs0 k =
   evalState fs0 $ \fs ->
@@ -930,7 +924,7 @@ runFileSystemPure' ex fs0 k =
               modify fs ((path, contents) :)
           }
 
-action :: (e :> es) => FileSystem e -> Eff es String
+action :: (e :> es) => FileSystem e' e -> Eff es String
 action fs = do
   file <- readFile fs "/dev/null"
   when (length file == 0) $ do
@@ -948,9 +942,9 @@ exampleRunFileSystemPure :: Either String String
 exampleRunFileSystemPure = runPureEff $ try $ \ex ->
   runFileSystemPure ex [("/dev/null", "")] action
 
--- exampleRunFileSystemPure' :: Either String String
--- exampleRunFileSystemPure' = runPureEff $ try $ \ex ->
---   runFileSystemPure' ex [("/dev/null", "")] action'
+exampleRunFileSystemPure' :: Either String String
+exampleRunFileSystemPure' = runPureEff $ try $ \ex ->
+  runFileSystemPure' ex [("/dev/null", "")] action'
 
 -- > exampleRunFileSystemPure
 -- Left "File not found: /tmp/doesn't exist"
